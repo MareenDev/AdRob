@@ -1,0 +1,10 @@
+/Test/*
+*test*
+*.png
+*.pt
+*/__pycache__/*
+.vscode/*
+*.npy
+SignOpt.py
+HSJ_old.py
+data/*
