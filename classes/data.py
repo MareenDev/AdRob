@@ -2,8 +2,13 @@ import bs4
 from os import path
 from PIL import Image
 import numpy as np
-from classes.framework import Collector, DataPreparation, PathHandler, RestApiCall,saveJSON
+from classes.framework import Collector, DataPreparation, PathHandler, RestApiCall, DataHandler
 import requests
+from torch import float32
+from torchvision import datasets
+from torchvision.transforms import v2
+from torch.utils.data import DataLoader
+
 
 
 #Classes for Collecting Data
@@ -121,25 +126,6 @@ class ImageByTVDataset(Collector):
                 filename = path.join(sub_folder,str(i)+".jpg")
                 image.save(filename)
 
-class ImageByModelQuery(Collector):
-    def __init__(self) -> None:
-        super().__init__()
-        self.apiCall = None
-
-    def collectData(self,inputdata:dict)->dict:          
-        result = dict()
-        for key,value in inputdata.items():
-            for i,x in enumerate(value):
-                y = self.apiCall.predict(x=x)
-                result[key+str(i+1)]=y
-        return result
-
-    def setRequestHandler(self,apiCall:RestApiCall):
-        self.apiCall = apiCall
-
-
-#Classes for Preparing datacollection
-
 class ImagePrep(DataPreparation):
 
     def prepare(self, shape):
@@ -211,5 +197,3 @@ class ImagePrep(DataPreparation):
         array_new = array*255
         return Image.fromarray(obj=array_new.squeeze().astype(np.uint8),mode='RGB')
 
-def loadAttack(protocolname):
-    pass

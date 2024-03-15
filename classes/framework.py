@@ -1,12 +1,35 @@
 from os import path, mkdir, listdir
-from torch import Tensor
-from torchvision import utils
+import matplotlib.pyplot as plt
+#import seaborn as sns
 
 import numpy as np
-import csv
 import time
 import json
 import requests
+
+class JSONHandler:
+    def __init__(self) -> None:
+        self.data = dict()
+
+    def setData(self, data):
+        self.data = data
+
+    def getData(self):
+        return self.data
+
+    def load(self, filename):
+        if path.isfile(filename):   
+            with open(filename, "r") as jsonfile:
+                self.data  = json.load(jsonfile)
+        else:
+            raise ValueError("Given folder doesn't contain a file")
+
+    def save(self, filename):
+        h,_ = path.split(filename)
+        if not path.exists(h):
+            mkdir(h)
+        with open(filename, "w") as jsonfile:
+            json.dump(self.data,jsonfile, indent=4)
 
 class PathHandler:
     def __init__(self, directory):
@@ -65,7 +88,6 @@ class PathHandler:
 
         return result
 
-
 class DataHandler:
     def __init__(self):
         self.data = dict() 
@@ -83,15 +105,18 @@ class DataHandler:
         self.data = data 
         
     def load(self,directory):
+        jH = JSONHandler()
         filename = path.join(directory,"dataset.json")
-        dataset = loadJson(filename)
+        jH.load(filename)
+        dataset = jH.getData()
+
         self.name = dataset["name"]
         self.shape = dataset["shape"]
         self.size = dataset["size"]
         data = dict()
-
-        for filename in dataset["data"]: 
-            data[filename]= np.load(filename) #Wichtig: x_ref daten müssen an Position 0 steht!!!        
+        labels = dict()
+        for element in dataset["data"]: 
+            data[element["path"]]= {"input":np.load(element["path"]), "label":element["label"]} #Wichtig: x_ref daten müssen an Position 0 steht!!!
         self.setData(data=data)
     
     def getShape(self):
@@ -112,8 +137,7 @@ class DataHandler:
     def saveData(self, directory):
         for key in self.data:
             filename = path.join(directory,str(path.basename(key)))
-            np.save(arr=self.data[key],file=filename)
-
+            np.save(arr=self.data[key]["input"],file=filename)
 
 class AttackProtocol:
     def __init__(self,id):    
@@ -123,9 +147,11 @@ class AttackProtocol:
 
         self.id         = id
         if path.exists(self.filename):
-            self.load()
+            self.load() # Werfe Fehlermeldung! und achte darauf, dass in der Angriffsausführung bei zwischenspeicherung die load methode explizit ausgeführt wird
         else:
             self.aName      = ""
+            self.aTargeted   = bool()
+            self.aNorm       = None
             self.reqHandlerClass = ""
             self.reqestUrl  = ""
             self.reqMethod  = ""
@@ -139,9 +165,11 @@ class AttackProtocol:
     def getPath(self):
         return path.dirname(p=self.filename)
 
-    def setAttackName(self,name):
+    def setAttackData(self,name:str,targeted:bool,norm:str):
         self.aName      = name
-
+        self.aTargeted  = targeted
+        self.aNorm      = norm
+        
     def setApiData(self,handlerClass,url,method):
         self.reqHandlerClass = handlerClass
         self.reqestUrl  = url
@@ -149,6 +177,9 @@ class AttackProtocol:
         
     def setDataset(self,name,size,shape):
         self.dataset = { "name": name, "size":size, "shape":shape}
+
+    def getRTData(self):
+        return self.RTData
 
     def addRTData(self,folder,parameter, runtime):
         self.RTData[str(self.counter)] = {"folder":folder,
@@ -162,11 +193,18 @@ class AttackProtocol:
     def getStart(self):
         return self.start
     
+    def getDataset(self):
+        return self.dataset
+
+    def getAName(self):
+        return self.aName
+    
     def _getDurationFormatted(self,seconds):
         return str(int(seconds // 3600))+"h "+str(int((seconds % 3600)//60))+"min "+str(int(seconds % 60))+"sek"
 
     def save(self):
         #Check if Protocol already exist
+        jh = JSONHandler()
         data = {"ID":self.id,
                 "Attack":self.aName,
                 "API":{
@@ -175,11 +213,15 @@ class AttackProtocol:
                     "Method":self.reqMethod
                     },
                 "Dataset":self.dataset,
-                "Runs":self.RTData}        
-        saveJSON(data=data,filename=self.filename)
+                "Runs":self.RTData}      
+        jh.setData(data)
+        jh.save(self.filename)  
+        #saveJSON(data=data,filename=self.filename)
 
     def load(self):
-        data = loadJson(self.filename)
+        jH = JSONHandler()
+        jH.load(self.filename)
+        data = jH.getData()
         self.aName = data["Attack"]
         self.counter    = len(data["Runs"])
         self.id         = data["ID"]
@@ -189,34 +231,162 @@ class AttackProtocol:
         self.dataset    = data["Dataset"]
         self.RTData     = data["Runs"]
 
-    def getOutputs(self):
-        outputDict = dict()
+    def getAttackPaths(self):
+        result = []
         for _,value in self.RTData.items():
-            output = self._loadOutput(value["folder"])
-            outputDict[value["folder"]] =output
-        return outputDict
+            result.append(value["folder"]) 
+        return result
 
-    def getInputs(self):
-        inputDict = dict()
-        for _,value in self.RTData.items():
-            input = self._loadInput(value["folder"])
-            inputDict[value["folder"]] = input
-        return inputDict
+    def getDataByPath(self):
+        result = dict()
 
-    def _loadOutput(self,p):
-        filename = path.join(p,"Output.json")
-        return loadJson(filename)
+        output = dict()
+        input =  dict()
+        queryCall =  dict()
 
-    def _loadInput(self,p):
-        ph = PathHandler(path.join(p,"Input"))
-        filenames = ph.get_filenames("npy")
-        return [np.load(path.join(folder,filename)) for folder,filenameList in filenames.items() for filename in filenameList ] #[np.load("Test/Attack/ID03/SignOpt1708123971_9652371/Input/Bag_0.npy"),np.load("Test/Attack/ID03/SignOpt1708123971_9652371/Input/Bag_1.npy"),np.load("Test/Attack/ID03/SignOpt1708123971_9652371/Input/Bag_2.npy"),np.load("Test/Attack/ID03/SignOpt1708123971_9652371/Input/Bag_3.npy"),np.load("Test/Attack/ID03/SignOpt1708123971_9652371/Input/Bag_4.npy"),np.load("Test/Attack/ID03/SignOpt1708123971_9652371/Input/Bag_5.npy"),np.load("Test/Attack/ID03/SignOpt1708123971_9652371/Input/Dress_0.npy"),np.load("Test/Attack/ID03/SignOpt1708123971_9652371/Input/Dress_1.npy"),np.load("Test/Attack/ID03/SignOpt1708123971_9652371/Input/Dress_0.npy")]
+        paths = self.getAttackPaths()        
+        for key in paths:
+            aL = AttackDataLoader(key)
+            output = aL.getOutput()
+            input = aL.getInput()        
+            queryCall = aL.getQueryCalls()
+            labels = self._getLabels()
+            result[key]=dict()
+
+            if len(output) == len(input) == len(queryCall):
+                for k in output:
+                    result[key][k] = {"output":output[k],"input":input[k],"queryCalls":queryCall[k],"labels":labels[k.split("_")[0]]}
+            else:
+                raise ValueError()
+        return result
+    
+    def _getLabels(self):
+        result = dict()
+
+        dataset = self.getDataset() 
+        dL = DataHandler()
+        dL.load(path.join(dataset["name"],"Dataset"))
+        data = dL.getData()
+        for k in data :
+            result[path.basename(k)[:-4]] = data[k]["label"] #Neuer Key erhält nur dateinamen, ohne Pfad und Dateiendung
+        return result
+    
+class MultiPlot:
+    def __init__(self,x_label:str,y_label:str,size, x_step,y_step,x_max,y_max,title):
+        self.colors =  ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf','#bccd22', '#17ff1f']
+        self.colorMap = dict()
+        self.fig = self.init_plot(size=size,x_label=x_label,y_label=y_label,x_max=x_max,y_max=y_max,x_step=x_step,y_step=y_step,title=title)
+
+    def init_plot(self,size,x_label,y_label,x_max,y_max,x_step,y_step,title):
+        plt.ioff()
         
+        fig = plt.figure(figsize=size)
+        plt.yticks(np.arange(0, y_max, step=y_step)) # Values in [0,y_max] 
+        plt.xticks(np.arange(0, x_max+x_step,step=x_step))#self.x_sorted[-1]+steps, step=steps))
+        plt.xlabel(xlabel=x_label)
+        plt.ylabel(ylabel=y_label)
+        plt.title(title)
 
+        return fig
+    
+    def _mapColor(self,name):
+        result = ""
+        try:
+            result = self.colorMap[name]
+        except:
+            i = len(self.colorMap)
+            try:
+                result = self.colors[i]
+                self.colorMap[name]=result
+            except:
+                raise ValueError("Allready 10 datasources used. Adding more is not allowed.")
+        return result
+    
+    def addData(self,name:str,x:list,y:list, useLowerBound = False, usePoinLabels =False,pointlabels=[]):
+        if len(x) != len(y):
+            raise ValueError("Lists x and y need to have same length")
+
+        #plot points with given color
+        color = self._mapColor(name)
+        plt.scatter(x,y, c=color, alpha=0.5,label=name)
+        plt.legend(loc="upper left")
+
+        if useLowerBound:
+            self._addLowerBoundCurves(name,x,y)
+        if usePoinLabels:
+            self._addPointLabels(pointlabels,x,y)
+    
+    def _getPointWithMinY(self,points:list):
+        points.sort(key=lambda x: x[1])  
+        result = points[0]
+        return result
+
+    def _addLowerBoundCurves(self,name:str,x:list,y:list):
+        color =self._mapColor(name)
+        points = []
+
+        x_curve = []
+        y_curve = []
+
+        #Create points and sort them among x (increasing)
+        for i,_ in enumerate(x):
+            points.append((x[i],y[i]))
+
+        points.sort(key=lambda x: x[0])  
+
+
+        #if serveral point with same x-value occure, just collect those with lowest y-value
+        binaerStr = "0" 
+        for i in range(1,len(points)):
+            if points[(i-1)][0]==points[i][0]:
+                binaerStr+="1"
+            else:
+                binaerStr+="0"
+        
+        if binaerStr.find("01")<0: #everythings fine
+            x_curve = [x for x,_ in points]
+            y_curve = [y for _,y in points]
+        else: #filter multiple points for x
+            p = [] 
+            idx_s = [i for i in range(len(binaerStr)) if binaerStr.startswith('01', i)]
+            idx_e = [i+1 for i in range(len(binaerStr)) if binaerStr.startswith('10', i)]
+
+            if len(idx_e) < len(idx_s):
+                idx_e.append(len(points)-1)
+
+            for i,ch in enumerate(binaerStr):
+                if (ch == '0') and (i not in idx_s):
+                    p.append(points[i])
+
+            for i,idx in enumerate(idx_s):
+                 p.append(self._getPointWithMinY(points[idx:idx_e[i]]))
+
+            p.sort(key=lambda x: x[0])  
+            x_curve = [x for x,_ in p]
+            y_curve = [y for _,y in p]
+
+        plt.plot(x_curve,y_curve,color=color)
+
+    def _addPointLabels(self,names:list,x:list,y:list):
+        if len(names) == len(x):
+            for i,_ in enumerate(x):
+                plt.text(x[i],y[i],path.basename(names[i]))
+
+    def show(self):
+        self.fig.show()
+
+    def save(self, filename ):
+        #filepath = path.dirname(filename)
+        #p = PathHandler(filepath)
+        #p.create_subdirectory(path.basename(path.dirname(filepath)))
+        self.fig.savefig(filename)
 #---------------- classes to inherent from for extention----------------
 
 class Collector:
-    """ Abstract class for Domain-specific data-handling"""
+    """ Abstract class (as interface) for collecting data
+        inherent class for different kind of data 
+        or different data source 
+    """
         
     def collectData(self)->dict:
         """ Collect begnin examples for classifier
@@ -229,7 +399,6 @@ class Collector:
     def saveData(self, data:dict,folder)->None:
         """ Create tensors for data in directory/subdirectories """
         raise NotImplementedError
-
 
 class DataPreparation:
     def __init__(self) -> None:
@@ -252,19 +421,16 @@ class DataPreparation:
         """   
         ph = PathHandler(directory)    
         subdir = ph.create_subdirectory("Dataset")
-        dataset = {"name":directory, "size":self.size,"shape":self.shape}
-        filenamelist = []
-
+        dataset = {"name":directory, "size":self.size,"shape":self.shape, "data":[]}
+        jH = JSONHandler()
         for key in data:
             filename = path.join(subdir,path.basename(key)+".npy")    
             np.save(file=filename,arr=data[key])
+            dataset["data"].append({"path":filename, "label": path.basename(key)})# Probleme mit referenzobjekt.
 
-            filenamelist.append(filename)
-        
-        dataset["data"] = filenamelist
-        saveJSON(filename=path.join(subdir,"dataset.json"),data=dataset)
+        jH.setData(dataset)
+        jH.save(path.join(subdir,"dataset.json"))
             
-
 class RestApiCall:
     """ class to inherent from to query api-classifiers"""
     def __init__(self , url , method='POST', id = "C") :
@@ -348,7 +514,6 @@ class RestApiCall:
         """Transform input-data for further processing"""
         raise NotImplementedError("To be implemented in inherented class")
 
-
 class EvasionAttack:
     def __init__(self,name,apiCall:RestApiCall,shape,targeted,norm,batchsize,verbose):
         self.initLists()
@@ -388,7 +553,7 @@ class EvasionAttack:
             dh.setShape(self.shape)  #TBD
             d = dict()
             for key, value in self.x_list.items(): 
-                d[key]=value
+                d[key]={"input": value,"label":"NotAvailable"}
 #                dh.setData(data={key:value}) #Wichtig: x_ref daten müssen an 'Position 0' steht!!!      
             dh.setData(d)
             dh.saveData(inputfolder)  
@@ -399,77 +564,97 @@ class EvasionAttack:
             for key in self.y_list:
                 y_dict[key] = [str(x) for x in self.y_list[key]] 
                 o_dict[key] = [str(x) for x in self.querycount[key]]
+            jH = JSONHandler()
+            jH.setData(y_dict)
+            jH.save(path.join(attackfolder,"Output.json"))
 
-            saveJSON(data=y_dict,filename=path.join(attackfolder,"Output.json"))
-            saveJSON(data=o_dict,filename=path.join(attackfolder,"APICalls.json"))
+            jH.setData(o_dict)
+            jH.save(path.join(attackfolder,"APICalls.json"))
+
+#            saveJSON(data=y_dict,filename=path.join(attackfolder,"Output.json"))
+#            saveJSON(data=o_dict,filename=path.join(attackfolder,"APICalls.json"))
 
         else: 
             attackfolder = None
         return attackfolder
+
+class AttackDataLoader:
+    def __init__(self,folder) -> None:
+        self.folder = folder
+
+        self.output = self._loadOutput()
+        self.queryCalls= self._loadQueryCalls() 
+        self.input = self._loadInput()
+
+    def getRefname(self):
+        return path.basename(self.folder)
+
+    def getOutput(self):
+        return self.output
     
+    def getInput(self):
+        return self.input
 
-class Interpreter:
-    def __init__(self,data):
-        self.data = data
+    def getQueryCalls(self):
+        return self.queryCalls
+    
+    def _loadOutput(self):
+        try:
+            result = dict()
+            jH = JSONHandler()
+            jH.load(path.join(self.folder,"Output.json"))
 
-    def calculate(self):
-        NotImplementedError()
+            data = jH.getData()
+            for k,v in data.items():#outputs
+                result[k]={"ref": v[0],"advList":v[1:]}
+
+            return result
+        except:
+            raise FileNotFoundError("No output-file (Output.json) available.")
+
+    def _loadQueryCalls(self):
+        try:
+            result = dict()
+            jH = JSONHandler()
+            jH.load(path.join(self.folder,"APICalls.json"))
+
+            data = jH.getData()
+            for k,v in data.items():#outputs
+                result[k]={"ref": v[0],"advList":v[1:]}
+            return result
+        except:
+            raise FileNotFoundError("No output-file (APICall.json) available.")
         
-    def save(self,folder):
-        NotImplementedError()
-
-
-#---------------- TBD ----------------
-
-def saveJSON(filename, data):
-    h,_ = path.split(filename)
-    if not path.exists(h):
-        mkdir(h)
-    with open(filename, "w") as jsonfile:
-        json.dump(data,jsonfile, indent=4)
-
-def loadJson(filename):
-    result = dict()
-    with open(filename, "r") as jsonfile:
-         result  = json.load(jsonfile)
+    def _loadInput(self):
+        try:
+            result = dict()
+            ph = PathHandler(path.join(self.folder,"Input"))
+            filenames = ph.get_filenames("npy")
+            for f,liste in filenames.items():
+                for filename in liste:
+                    liste = np.load(path.join(f,filename))
+                    #result[path.join(f,filename)] = {"xRef":liste[0],"xAdvList":liste[1:]}#np.load(path.join(f,filename))
+                    result[path.basename(filename)[:-4]] = {"ref":liste[0],"advList":liste[1:]}#np.load(path.join(f,filename))
+            
+            return result
+        except:
+            raise NotADirectoryError("No directory", path.join(self.folder,"Input"),"available.")
+        
     
-    return result
+class Interpreter:
+    def __init__(self,refname,**kwargs):
+        self.refname = refname
+        self.name = ""
+        self.description = ""
 
-def tensorToNpArray(tens:Tensor)->np.ndarray:
-    arr = tens.numpy()
-    # Dimensionen des numpy-arrays müssen rotiert werden
+    def get(self):
+        raise NotImplementedError()
+    
 
-def saveListOfListsToGrid(nd_list:list,filename,rows):
-    tensorlist = [Tensor(npArraytoTensor(array)) for it in nd_list for array in it]
-    grid = utils.make_grid(tensor=tensorlist,nrow=rows)
-    utils.save_image(tensor=grid,fp=path.join(filename))
-
-def saveListOfListsToCSV(list, filename):
-
-    with open(filename, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerows(list)
-
-def readOutput(filename)->list:
-    result = []
-    with open(filename, 'r') as f:
-        reader = csv.reader(f,delimiter=",")
-        for row in reader:
-            result.append(row)
-
-    return result
-
-def npArraytoTensor(arr:np.ndarray)->Tensor:
-    """
-        Erstellung eines Torchtensors, der Bildwerte repräsentiert
-        Args:
-        arr: np-Array mit Bildwerten in shape (height, width ,channels)
-        Return:
-        Torch-Tensor mit Bildwerten in shape (channels, height, width)
-    """
-    #arrnp.transpose(arr, (0, 3, 1, 2)).astype(np.float32)# Dimensionen für numpy-arrays müssen rotiert werden
-    arr2 = np.transpose(arr, (2, 0, 1)).astype(np.float32)
-    return Tensor(arr2)
+    def save(self,folder):
+        raise NotImplementedError()
+ 
+    #---------------- TBD ----------------
 
 def repl(string):
     result = string.replace(" ","_")

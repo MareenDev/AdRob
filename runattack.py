@@ -21,7 +21,7 @@ def _parseInput():
     parser.add_argument('--refname', type=str, default='Test', help= 'Name of entry in protocol')
     # attack 
     parser.add_argument('--attack_name', type=str, default='HSJ', help= 'Attack to be used for generating adversarial examples', required=True)
-    parser.add_argument('--metric', type=str, help='metric to use in attack, e.g. linf or l2 ')
+    parser.add_argument('--metric', type=str, help='metric to use in attack, e.g. linf or l2 ',default="")
     parser.add_argument( '--params_bool', type=lambda x: {str(k):bool(int(v)) for k,v in (i.split(':') for i in x.split(','))},
         help='comma-separated field:position pairs, e.g. targeted:True,...'
     )
@@ -101,25 +101,24 @@ def main(args):
                     for l in  args.params_int['query_limit']:
                         for m in  args.params_float['alpha']:
                             for n in  args.params_float['beta']:
-                                for o in  args.params_int['eval_perform']:
-                                    for p in args.params_float['epsilon']:
-                                        paramCombination.append({'iter_max':i, 'num_trial':j,'k':k,'query_limit':l,'alpha':m,'beta':n,'eval_perform':o,'epsilon':p})
+                                for o in args.params_float['epsilon']:
+                                    paramCombination.append({'iter_max':i, 'num_trial':j,'k':k,'query_limit':l,'alpha':m,'beta':n,'eval_perform':args.params_bool['eval_perform'],'epsilon':o})
         
-        attack = SignOPT(name=args.refname,apiCall=apiCall,shape=shape,norm="TBD",targeted=args.params_bool['targeted'],batchsize=batchsize,
+        attack = SignOPT(name=args.refname,apiCall=apiCall,shape=shape,norm=args.metric,targeted=args.params_bool['targeted'],batchsize=batchsize,
                         verbose=args.params_bool['verbose'])
 
     else:
         raise NotImplementedError()
     
-    attProcessingData.setAttackName(args.attack_name)
+    attProcessingData.setAttackData(name=args.attack_name,targeted=args.params_bool['targeted'],norm=args.metric)
 
     c = 0
     # run attacks
     for params in tqdm(paramCombination):
         attackStart = time.time()
-        for key in data: 
+        for key,value in data.items(): 
             c+=1
-            for i,x_ref in enumerate(data[key]): 
+            for i,x_ref in enumerate(value["input"]): 
                 x_ref2 = np.expand_dims(x_ref, axis=0) # expand shape: (Height,Width,Channels) -> (batchsize=1,Height,Width,Channels) for BBClassifier
                 name = basename(key).replace(".npy","_")+str(i)
                 attack.generate(x_ref=x_ref2,name=name,**params)

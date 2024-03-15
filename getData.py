@@ -18,7 +18,7 @@ def _parseInput():
 def main(args):
 
 
-    ph = PathHandler(join(curdir,"data","dataset"))
+    ph = PathHandler(join(curdir,"data","input"))
     folder = ph.create_subdirectory(args.name)
 
     if args.collector == "ImageByGoogle":

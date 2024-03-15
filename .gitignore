@@ -2,7 +2,7 @@
 *test*
 *.png
 *.pt
-*/__pycache__/*
+*__pycache__*
 .vscode/*
 *.npy
 SignOpt.py

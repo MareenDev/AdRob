@@ -6,7 +6,7 @@ def _parseInput():
     parser = argparse.ArgumentParser()
     parser.add_argument("--domain", type=str, default="Image", help="Domain for data")
     parser.add_argument("--shape",  help='delimited list input', type=lambda s: tuple([int(item) for item in s.split(',')])) 
-    parser.add_argument('--data_dir', type=str, default='/data/dataset/Test', help= 'Directory for data to prepare')
+    parser.add_argument('--data_dir', type=str, default='/data/input/Test', help= 'Directory for data to prepare')
     return parser.parse_args()
 
 def main(args):
