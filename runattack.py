@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from classes.framework import DataHandler, AttackProtocol
 from classes.models import ImageDecision
-from classes.attack import HSJ, SignOPT
+from classes.attack import HSJ, SignOPT, GeoDAAttack
 from os.path import join,basename
 import time
 import numpy as np
@@ -105,6 +105,20 @@ def main(args):
                                     paramCombination.append({'iter_max':i, 'num_trial':j,'k':k,'query_limit':l,'alpha':m,'beta':n,'eval_perform':args.params_bool['eval_perform'],'epsilon':o})
         
         attack = SignOPT(name=args.refname,apiCall=apiCall,shape=shape,norm=args.metric,targeted=args.params_bool['targeted'],batchsize=batchsize,
+                        verbose=args.params_bool['verbose'])
+    elif args.attack_name == "GeoDA":
+        if args.metric == "linf":
+            metric = np.inf   
+        else: 
+            metric = 2
+    # Prepare parameter-combination
+        for i in args.params_int['iter_max']:
+            for j in  args.params_int['substract_steps']:
+                for k in args.params_float['bin_search_tol']:
+                    for l in  args.params_float['lambda_param']:
+                        for m in  args.params_float['sigma']:
+                            paramCombination.append({'iter_max':i,'substract_steps':j, 'bin_search_tol':k,'lambda_param':l,'sigma':m})
+        attack = GeoDAAttack(name=args.refname,apiCall=apiCall,shape=shape,norm=metric,targeted=args.params_bool['targeted'],batchsize=batchsize,
                         verbose=args.params_bool['verbose'])
 
     else:

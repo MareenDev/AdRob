@@ -1,4 +1,4 @@
-from torch import nn, Tensor, arange, float32
+from torch import nn, Tensor, arange, float32, from_numpy
 from classes.framework import RestApiCall,repl
 import json
 import numpy as np
@@ -82,3 +82,16 @@ class ImageDecision(ImageScore) :
     def getLabelEncoding(self):
         return self.labelEncoding
     
+class ImageDecisionModel(nn.Module):
+    def __init__(self, *args, **kwargs) -> None:
+        super(ImageDecisionModel, self).__init__()
+
+        self.requestHandler = kwargs["requestHandler"] 
+        #self.inputsize = [1,1,28,28]
+        #self.outputsize = [1]
+
+    def forward(self, input):
+        array = input.cpu().numpy()
+        array = np.transpose(array,(0,2,3,1))
+        result = self.requestHandler.predict(array)
+        return from_numpy(result)

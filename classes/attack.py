@@ -1,8 +1,10 @@
-from classes.models import RestApiCall
+from classes.models import RestApiCall, ImageDecisionModel
 import numpy as np
 from art.estimators.classification.blackbox import BlackBoxClassifier
-from art.attacks.evasion import HopSkipJump, SignOPTAttack, SquareAttack, ZooAttack
+from art.estimators.classification.pytorch import PyTorchClassifier
+from art.attacks.evasion import HopSkipJump, SignOPTAttack, SquareAttack, ZooAttack, GeoDA
 from classes.framework import EvasionAttack
+from torch.nn import CrossEntropyLoss
 
 
 class HSJ(EvasionAttack):
@@ -76,6 +78,54 @@ class SignOPT(EvasionAttack):
         self.y_list[name] = [np.argmax(y_ref),np.argmax(y_adv)]
         self.querycount[name] = [0,self.APICall.getCounts()]
 
+####################
+        
+class GeoDAAttack(EvasionAttack):
+    def __init__(self, name, apiCall: RestApiCall, shape, targeted, norm, batchsize, verbose):
+        super(GeoDAAttack, self).__init__(name,apiCall,shape,targeted,norm,batchsize,verbose)
+
+        self.attackname ="GeoDa" 
+        model = ImageDecisionModel(requestHandler=apiCall)
+        tensorShape = (shape[2],shape[0],shape[1])
+        self.bbClassifier = PyTorchClassifier(model=model, input_shape=tensorShape, nb_classes=len(apiCall.getLabelEncoding()),
+                                          clip_values=(0,1),loss=CrossEntropyLoss) # blackbox classifier don't possess attribute 'channels_first' so we need to take a pytorchClassifier instead
+        self.targeted = targeted
+        self.batchsize = batchsize
+        self.verbose = verbose
+        self.APICall = apiCall
+        self.norm = norm
+
+
+    def generate(self, x_ref, name, **kwargs):
+
+        attack = GeoDA(
+            self.bbClassifier,
+            batch_size=self.batchsize,
+            norm=self.norm,
+            sub_dim=75,
+            max_iter=kwargs['iter_max'] - kwargs['substract_steps'],
+            bin_search_tol=kwargs['bin_search_tol'],
+            lambda_param=kwargs['lambda_param'],
+            sigma=kwargs['sigma'],
+            verbose=self.verbose,
+        )
+        # transform to tensor?
+        x_adv = None
+        y_ref = self.APICall.predict(x = x_ref)  
+        self.APICall.resetCounts()
+        #x_ref in tensorformat überführen
+        x_refT = np.transpose(a=x_ref,axes=(0,3,1,2))
+        x_advT = attack.generate(x=x_refT)
+        #y_adv = attack.estimator.predict(x=x_adv,batch_size=self.batchsize) 
+        
+        #überführe x_adv in numpyarray
+        x_adv = np.transpose(x_advT,(0,2,3,1))
+        y_adv = self.APICall.predict(x = x_adv)
+        self.APICall.decrementCounts()  
+
+        self.x_list[name] = [x_ref.squeeze(),x_adv.squeeze()]  
+        self.y_list[name] = [np.argmax(y_ref),np.argmax(y_adv)]
+        self.querycount[name] = [0,self.APICall.getCounts()]
 
 class ZOO(EvasionAttack):
     """SignOpt Attack - Decision-based attack
