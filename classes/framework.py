@@ -1,6 +1,6 @@
 from os import path, mkdir, listdir
 import matplotlib.pyplot as plt
-#import seaborn as sns
+import seaborn as sns
 
 import numpy as np
 import time
@@ -273,55 +273,90 @@ class AttackProtocol:
     
 class MultiPlot:
     def __init__(self,x_label:str,y_label:str,size, x_step,y_step,x_max,y_max,title):
-        self.colors =  ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf','#bccd22', '#17ff1f']
+        self.colors =  ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf','#bccd22', '#17ff1f','#baca21', '#18cc1f','#8d564c', '#7e37c5', '#11f34e', '#33cab3','#1c22f5', '#f12ffe']
         self.colorMap = dict()
         self.fig = self.init_plot(size=size,x_label=x_label,y_label=y_label,x_max=x_max,y_max=y_max,x_step=x_step,y_step=y_step,title=title)
 
     def init_plot(self,size,x_label,y_label,x_max,y_max,x_step,y_step,title):
         plt.ioff()
-        
-        fig = plt.figure(figsize=size)
+        fig, ax = plt.subplots(1,1,figsize=size)
+        ax.legend()
+        ax.set_ylabel("Test")
+        ax.set_xlabel("Test")
+        ax.set_title("robustness curves")
+        ax.set_xlim(left=0.0)
+        #fig = plt.figure(figsize=size)
         plt.yticks(np.arange(0, y_max, step=y_step)) # Values in [0,y_max] 
         plt.xticks(np.arange(0, x_max+x_step,step=x_step))#self.x_sorted[-1]+steps, step=steps))
         plt.xlabel(xlabel=x_label)
         plt.ylabel(ylabel=y_label)
         plt.title(title)
+        fig.tight_layout()
 
         return fig
-    
-    def _mapColor(self,name):
-        result = ""
+
+    def addvLines(self,x:list):
+        for xc in x:
+            plt.axvline(x=xc, linestyle="dotted", color="lightgrey")
+
+    def _getColor(self,name):
         try:
             result = self.colorMap[name]
         except:
-            i = len(self.colorMap)
-            try:
-                result = self.colors[i]
-                self.colorMap[name]=result
-            except:
-                raise ValueError("Allready 10 datasources used. Adding more is not allowed.")
+            result = ""
         return result
     
-    def addData(self,name:str,x:list,y:list, useLowerBound = False, usePoinLabels =False,pointlabels=[]):
+    def _mapColor(self,name):
+        result = ""
+        i = len(self.colorMap)
+        try:
+            result = self.colors[i]
+            self.colorMap[name]=result
+        except:
+            ValueError("Just showing the first"+ len(self.colorMap) +", curves. Adding more curves is not sufficient")
+        return result
+
+    def addCurve(self,name:str,x:list,y:list):
+        points = []            
+        for i,_ in enumerate(x):
+            points.append((x[i],y[i]))
+            
+        points.sort(key=lambda x: x[0])  
+        x_curve = [x for x,_ in points]
+        y_curve = [y for _,y in points]
+
+        color = self._getColor(name)
+        
+        if color == "":
+            color = self._mapColor(name)
+            plt.plot(x_curve,y_curve, c=color, alpha=0.5,label=name)
+            plt.legend(loc="upper right")
+       
+        else:
+            plt.plot(x_curve,y_curve, c=color, alpha=0.5)
+            plt.legend(loc="upper right")
+              
+    def addScatteredData(self,name:str,x:list,y:list, useLowerBound = False, usePoinLabels =False,pointlabels=[]):
         if len(x) != len(y):
             raise ValueError("Lists x and y need to have same length")
 
-        #plot points with given color
-        color = self._mapColor(name)
-        plt.scatter(x,y, c=color, alpha=0.5,label=name)
-        plt.legend(loc="upper left")
-
-        if useLowerBound:
-            self._addLowerBoundCurves(name,x,y)
+        color = self._getColor(name)
+        if color == "":
+            color = self._mapColor(name)
+            plt.scatter(x,y, c=color, alpha=0.5,label=name)
+            plt.legend(loc="upper right")
+        else:        
+            plt.scatter(x,y, c=color, alpha=0.5)
+            plt.legend(loc="upper right")
         if usePoinLabels:
-            self._addPointLabels(pointlabels,x,y)
-    
+            self.addPointLabels(names=pointlabels,x=x,y=y)
+
     def _getPointWithMinY(self,points:list):
         points.sort(key=lambda x: x[1])  
         result = points[0]
         return result
 
-    def _addLowerBoundCurves(self,name:str,x:list,y:list):
+    """def _addLowerBoundCurves(self,name:str,x:list,y:list):
         color =self._mapColor(name)
         points = []
 
@@ -366,11 +401,13 @@ class MultiPlot:
             y_curve = [y for _,y in p]
 
         plt.plot(x_curve,y_curve,color=color)
-
-    def _addPointLabels(self,names:list,x:list,y:list):
+        
+    """
+    def addPointLabels(self,names:list,x:list,y:list):
         if len(names) == len(x):
             for i,_ in enumerate(x):
                 plt.text(x[i],y[i],path.basename(names[i]))
+                
 
     def show(self):
         self.fig.show()
@@ -533,10 +570,6 @@ class EvasionAttack:
 
     def generate(self,x_ref,name,**kwargs):
         raise NotImplementedError()
-
-    def _saveModelOutput(self,folder):
-        #saveListOfListsToCSV(list=self.y_list, filename=path.join(folder,"output.csv"))
-        pass
 
     def saveData(self,folder):
         if self.x_list != {}: #[]

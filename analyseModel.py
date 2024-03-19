@@ -1,4 +1,4 @@
-from interpret import RobustnessCurve, AccuracyPerturbationCurve,AdvExampleGrids,ImagePerturbation
+from interpret import RobustnessCurve, AccuracyPerturbationCurve,AdvExampleGrids,ImagePerturbation, AccuracyPerturbationBudget, Accuracy
 from classes.framework import AttackProtocol
 import numpy as np
 from argparse import ArgumentParser
@@ -13,7 +13,7 @@ def _parseInput():
     parser.add_argument('--y_max', default=1, help='max value on y-axis', type=int) 
     parser.add_argument('--x_step', default=0.5, help='steps in x-axis', type=float)
     parser.add_argument('--y_step', default=0.1, help='steps in y-axis', type=float) 
-    parser.add_argument('--interpreter', help='',default="GetCraftedSamples", nargs='?', choices="[RobustnessCurve,GetCraftedSamples,AccuracyPerturbationCurve,ImagePerturbation]")#["CleanAccuracy","RobustAccuracyL2","RobustAccuracyLinf","RobustAccuracyQuery","GetCraftedSamples" ]) 
+    parser.add_argument('--interpreter', help='',default="GetCraftedSamples", nargs='?', choices="[AbsRobustAccuracy,RelRobustAccuracy,CleanAccuracy,AccuracyPerturbationBudget,RobustnessCurve,GetCraftedSamples,AccuracyPerturbationCurve,ImagePerturbation]")#["CleanAccuracy","RobustAccuracyL2","RobustAccuracyLinf","RobustAccuracyQuery","GetCraftedSamples" ]) 
     parser.add_argument("--metric", type=str, default="L2", help="Distance-Metrik", choices="[L2,Linf]")
     parser.add_argument('--addLowerCurve', type= bool, default=False)
     parser.add_argument('--addConfigTexts', type= bool, default=False)
@@ -42,6 +42,10 @@ def main(args):
             interpreter = AccuracyPerturbationCurve(args.refname, data=data,norm = metric)
             interpreter.createPlot(size=args.figuresize,x_step=args.x_step,y_step=args.y_step,x_max=args.x_max,y_max=args.y_max,
                                     useLowerBound=args.addLowerCurve,usePoinLabels=args.addConfigTexts)
+        elif "AccuracyPerturbationBudget" in args.interpreter:
+            interpreter = AccuracyPerturbationBudget(args.refname, data=data,norm = metric)
+            interpreter.createPlot(size=args.figuresize,x_step=args.x_step,y_step=args.y_step,x_max=args.x_max,y_max=args.y_max,
+                                    useLowerBound=args.addLowerCurve,usePoinLabels=args.addConfigTexts)
         
         elif "AccuracyQueryCount" in args.interpreter:
             #TBD
@@ -66,32 +70,39 @@ def main(args):
                 
             interpreter = AdvExampleGrids(args.refname,data=inputData)
 
+        elif "RelRobustAccuracy" in args.interpreter:
+            for key in data:
+                predictionsRef = []
+                predictionsAdv =[]
+                
+                for image in data[key]:
+                    for adv in data[key][image]["output"]["advList"]:
+                        predictionsRef.append(data[key][image]["output"]["ref"])
+                        predictionsAdv.append(adv)
+                    interpreter = Accuracy(args.refname, labels= predictionsRef, predictions = predictionsAdv,type="RelativeRobust") # erstmal nur ein key/image
+        elif "AbsRobustAccuracy" in args.interpreter:
+            for key in data:
+                labels = []
+                predictionsAdv=[]
+                for image in data[key]:
+                    for adv in data[key][image]["output"]["advList"]:
+                        labels.append(data[key][image]["labels"])
+                        predictionsAdv.append(adv)
+                    interpreter = Accuracy(args.refname, labels= labels, predictions = predictionsAdv,type="AbsoluteRobust") # erstmal nur ein key/image
+        elif "CleanAccuracy" in args.interpreter:
+            for key in data:
+                labels = []
+                predictions=[]
+                for image in data[key]:# erstmal nur einen key betrachten
+                    labels.append(data[key][image]["labels"])
+                    predictions.append(data[key][image]["output"]["ref"])
+                
+                interpreter = Accuracy(args.refname, labels= labels, predictions = predictions,type="Clean") 
+
         elif "ImagePerturbation" in args.interpreter:
             interpreter = ImagePerturbation(args.refname, data = data)
         else:
             raise NotImplementedError()
-        
-        """
-        elif "CleanAccuracy" in args.interpreter:
-            ap = AttackProtocol(args.refname)
-
-            #read Dataset-ref by protocolref
-            path_d = join(ap.dataset["name"],"Dataset")
-            dH = DataHandler()
-            dH.load(path_d)
-            input = dH.getData()
-
-            #getModel
-            model_clname = ap.reqHandlerClass
-            model_method = ap.reqMethod
-            model_url = ap.reqestUrl
-
-            model_cls = vars(classes.models)["model_cl"]
-            access = model_cls(url=model_url, method=model_method,id=args.refname, labels=args.labels)
-
-
-            #calc output
-            pass"""
         
         interpreter.save(join("data","interpretation"))
         print("Data saved at folder",join("data","interpretation",args.refname))

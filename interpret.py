@@ -3,7 +3,7 @@ from os import path
 import numpy as np
 from torch import Tensor
 from torchvision import utils
-
+from matplotlib import pyplot as plt
 # Interpretations of attack with specific configuration
 #TBD: Logik in ordner classes verschieben
 class MeandAdvQueryCounts(Interpreter):
@@ -43,13 +43,12 @@ class MeandAdvQueryCounts(Interpreter):
         jh.setData(j)
         jh.save(filename=filenameabs)
 
-
 class Accuracy(Interpreter):
 
     def __init__(self, refname, **kwargs):
         super().__init__(refname, **kwargs)
-        self.name = "Akkuranz" 
-        self.description = "Akkuranz" 
+        self.name = "Accuracy" 
+        self.description = "Accuracy" 
         try:
             self.labels = kwargs["labels"] 
         except :
@@ -58,8 +57,12 @@ class Accuracy(Interpreter):
             self.predictions = kwargs["predictions"] 
         except :
             raise ValueError("Parameter 'predictions' is missing.")
+        try:
+            self.type= kwargs["type"] 
+        except :
+            raise ValueError("Parameter 'type' is missing.")
 
-        self.data = self._calculate()
+        self._calculate()
 
     def _calculate(self):
         total=0
@@ -69,21 +72,21 @@ class Accuracy(Interpreter):
             total += 1
             if self.predictions[i] == self.labels[i]:
                 correct +=1
-        return correct/total
+        self.data = correct/total
 
     def get(self):
         return self.data
 
     def save(self, folder="./data/interpretation"):
         jh = JSONHandler()
-        filenameabs = path.join(folder,self.refname,self.name+".json")
+        filenameabs = path.join(folder,self.refname,self.type+"_"+self.name+".json")
         j = dict()
         j[self.refname]=self.data
 
         jh.setData(j)
         jh.save(filename=filenameabs)
-
-class MeanDistortionLp(Interpreter):
+   
+class DistortionLp(Interpreter):
 
     def __init__(self, refname, **kwargs):
         super().__init__(refname, **kwargs)
@@ -110,12 +113,12 @@ class MeanDistortionLp(Interpreter):
     def _calculate(self):
         dist = []
         for i in range(len(self.referencesData)):
-            perturbation = np.reshape(self.adversarialData[i] - self.referencesData[i], [-1])
-            dist.append(np.linalg.norm(x=perturbation,ord=self.ord))
+            p = getPerturbation(self.adversarialData[i], self.referencesData[i])
+            dist.append(np.linalg.norm(x=p, ord=self.ord))
         if len(dist) == 0:
             dist =[0]
 
-        self.data = np.mean(dist)
+        self.data = dist
  
     def save(self, folder="./data/interpretation"):
         jh = JSONHandler()
@@ -126,18 +129,17 @@ class MeanDistortionLp(Interpreter):
         jh.setData(j)
         jh.save(filename=filenameabs)
 
-
-class DeepFoolMeasure(MeanDistortionLp):
+class DeepFoolMeasure(DistortionLp):
     def _calculate(self):
         dist = []
-        for i in range(len(self.referencesData)):
-            perturbation = np.reshape(np.subtract(self.adversarialData[i], self.referencesData[i]), [-1])
-            dist.append(np.linalg.norm(x=perturbation,ord=np.inf)/np.linalg.norm(x=np.reshape(self.referencesData[i],[-1]),ord=self.ord))
-        if len(dist) == 0:
-            dist =[0]
+        #Calc Distortion by superclass
+        s = super()
+        s._calculate()
+        #For all elements calculated by superclass divide datasize
+        for i, el in enumerate(self.data):
+            dist.append(el/np.linalg.norm(x=np.reshape(self.referencesData[i],[-1]),ord=self.ord))
 
-        self.data = np.mean(dist)
-
+        self.data = dist
 
 class Plot(Interpreter):
     def __init__(self, refname, **kwargs):
@@ -174,11 +176,7 @@ class Plot(Interpreter):
         return self.data
     
     def createPlot(self,size,x_step,y_step,x_max,y_max,useLowerBound=False,useConfigNames=False ):
-        """self.plot = MultiPlot(x_label=self.xSuffix,y_label=self.ySuffix,
-                              size=size,x_step=x_step,y_step=y_step,x_max=x_max,y_max=y_max,title=self.description)
-        
-        self.plot.addData(name=path.basename(self.refname) ,x=self.data["x"],y=self.data["y"],useLowerBound=useLowerBound,
-                          useConfigNames=useConfigNames,confignames=self.data["names"])"""
+        pass
 
     def save(self, folder ="./data/interpretation/"):
         pH = PathHandler(folder)
@@ -216,29 +214,28 @@ class RobustnessCurve(Plot):
 
     def _calculate(self):
         for key in self.adversarialInputs: 
-            dists_r = []
+            #Calc Distortion 
+            dists = []
             advInput = np.array(self.adversarialInputs[key])
             refInput = np.array(self.refInputs[key])
             labels = np.array(self.labels[key])
             refPredictions = np.array(self.refPredictions[key])
-            dists_r = np.array([np.linalg.norm(x = vector, ord = self.norm) for 
-                                vector in np.subtract(advInput.reshape(advInput.shape[0],-1 ), 
-                                refInput.reshape(refInput.shape[0], -1))])
-            
-            dists_r[refPredictions != labels] = 0 #Werte bei denen die die Prediktionen, nicht dem Datensatz entsprechen werden nicht berücksichtigt 
-            dists_r.sort(axis=0)
+            dists = np.array(DistortionLp(refname=self.refname,original=refInput,adversarials=advInput, ord= self.norm).get())
+            dists[refPredictions != labels] = 0 #Just distortions where classificaton of referencedata = groud truth label  
+            dists.sort(axis=0)
+
+            #Calc y 
             probs = 1/float(len(self.refPredictions[key])) * np.arange(1, len(self.refPredictions[key])+1)
+            probs[np.isnan(dists)] = 1.0
+            dists = np.nan_to_num(dists, nan = np.nanmax(dists))
 
-            probs[np.isnan(dists_r)] = 1.0
-            dists_r = np.nan_to_num(dists_r, nan = np.nanmax(dists_r))
-
-            self.data[key]={"x" : dists_r, "y": probs }
+            self.data[key]={"x" : dists, "y": probs }
 
     def createPlot(self,size,x_step,y_step,x_max,y_max,useLowerBound=False,usePoinLabels=False ):
         self.plot = MultiPlot(x_label=self.xSuffix,y_label=self.ySuffix,
                               size=size,x_step=x_step,y_step=y_step,x_max=x_max,y_max=y_max,title=self.description)
         for key,data in self.data.items(): 
-            self.plot.addData(name=path.basename(key) ,x=data["x"],y=data["y"],useLowerBound=True)
+            self.plot.addCurve(name=path.basename(key) ,x=data["x"],y=data["y"])
 
 # Implementierung in Anlehnung an https://doi.org/10.1109/ICPR48806.2021.9413143
 class AccuracyPerturbationCurve(Plot):
@@ -253,58 +250,183 @@ class AccuracyPerturbationCurve(Plot):
         self.name = "AccuracyPerturbationCurve_L"+str(self.norm)
         self.description = "Scatterplot zu Accuracy-Perturbation-Curve "  
 
-        self.xSuffix = "L"+str(self.norm)+"-Metrik"
-        self.ySuffix = "Robuste Akkuranz"
+        self.xSuffix = "L"+str(self.norm)+"-Metric"
+        self.ySuffix = "Robust Accuracy"
         self._calculate()
 
     def _calculate(self):
-        #1. Kalkulieren der (relativen) robusten Akkuranz über den gesamten Datensatz - D_all 
-        #2. Herausfiltern der Datenpunkte, die durch den Klassifikator falsch abgebildet werden - D_interesse
-        #3. Kalkulieren der mittleren Distortion entsprechend der DeepFool-Logik auf D_interesse
         self.data["x"] = []
         self.data["y"] = []
-
+        self.data["names"] = []
+        self.data["lbX"] = []
+        self.data["lbY"] = []
+        
         for attackConfig in self.refInputs:
-            #Zu 1.Absolute, robuste Akkuranz
-            self.data["names"]=path.basename(attackConfig)
+            #1. Calc robust accuracy for all Instances created by attack (acvInput - corresponding output)
+            self.data["names"].append(path.basename(attackConfig))
             self.data["y"].append(Accuracy(refname=self.refname,labels= self.labels[attackConfig],
-                                    predictions=self.adversarialPredictions[attackConfig]).get())
+                                    predictions=self.adversarialPredictions[attackConfig],type="AbsoluteRobust").get())
 
-            #Zu 2.Filterung der falsch klassifizierten Daten durch den Klassifikator 
-            indizeList = []
-            refInputs = []
-            advInput = []
+            #2. Calc Distortion between originalData and adversarial Input for all Instances 
+            liste = DistortionLp(refname=self.refname,ord=self.norm,
+                                                     original=self.refInputs[attackConfig],
+                                                     adversarials = self.adversarialInputs[attackConfig]).get()
 
-            for i in range(len(self.refPredictions[attackConfig])):
-                if self.refPredictions[attackConfig][i]== self.labels[attackConfig][i]:
-                    indizeList.append(i)
-                    refInputs.append(self.refInputs[attackConfig][i])                        
-                    advInput.append(self.adversarialInputs[attackConfig][i])
-                    
-            #Zu 3.Kalkulieren der mittleren Distortion anhand DeepFool-Logik auf Teilmenge             
-            self.data["x"].append(DeepFoolMeasure(refname=self.refname,ord=self.norm,
-                                                     original=refInputs,
-                                                     adversarials = advInput).get())
+            #3. Get mean of distortions for instances originalData missclassified by the classifier to 0             
+            liste = np.array(liste)
+            
+            liste[np.array(self.refPredictions[attackConfig]) != np.array(self.labels[attackConfig])] = 0 #Just distortions where classificaton of referencedata = groud truth label  
+            liste = np.ma.masked_equal(liste,0) # mask null-values to make sure they are not taken into account for mean-calculation 
+            self.data["x"].append(np.mean(liste))
+
+        self.data["lbX"],self.data["lbY"]=self.getLowerBound()
 
     def createPlot(self,size,x_step,y_step,x_max,y_max,useLowerBound=False,usePoinLabels=False ):
         self.plot = MultiPlot(x_label=self.xSuffix,y_label=self.ySuffix,
                               size=size,x_step=x_step,y_step=y_step,x_max=x_max,y_max=y_max,title=self.description)
         
-        self.plot.addData(name=path.basename(self.refname) ,x=self.data["x"],y=self.data["y"],useLowerBound=useLowerBound,
+        self.plot.addScatteredData(name=path.basename(self.refname) ,x=self.data["x"],y=self.data["y"],useLowerBound=False,
                           usePoinLabels=usePoinLabels,pointlabels=self.data["names"])
+        
+        self.plot.addCurve(path.basename(self.refname),x=self.data["lbX"], y=self.data["lbY"])
+
+
+    def getLowerBound(self):
+        # get sorted accuracy-indexlist
+        rng = range(len(self.data["y"]))
+        accIndPoints = [(i,self.data["y"][i]) for i in rng] # indize, accuracy
+        accIndPoints.sort(key=lambda x: x[1])  
+        accIdxsorted = [i for i,_ in accIndPoints]
+
+        idx = accIdxsorted[:2] # initialize indexarray
+        for i in accIdxsorted[2:]:
+            if self.data["x"][i] < self.data["x"][idx[0]]:
+                idx.insert(0,i)
+            if self.data["x"][i]>self.data["x"][idx[-1]]:
+                idx.append(i)
+        
+        x_curve = []
+        y_curve = []
+
+        for i in idx:
+            x_curve.append(self.data["x"][i])
+            y_curve.append(self.data["y"][i])
+        return x_curve, y_curve
+class AccuracyPerturbationBudget(Plot):
+    """Berechnung von Accuracy/Distortion zu einer (Kombination von) Angriffsausführung(en)"""
+    def __init__(self, refname, **kwargs):
+        super().__init__(refname, **kwargs)
+        try:
+            self.norm = kwargs['norm'] 
+        except :
+            raise ValueError("Parameter 'norm' is missing.")
+        
+        self.name = "AccuracyPertubationBudget"+str(self.norm)
+        self.description = "Accuracy-Perturbationbudget-Curve "  
+
+        self.xSuffix = "L"+str(self.norm)+"-Metrik"
+        self.ySuffix = "Robust Accuracy"
+        self._calculate()
+
+    def _calculate(self):
+        self.data["x"] = []
+        self.data["y"] = []
+        self.data["binData"] = dict()
+        self.data["names"] = []
+
+        self.cLabels = []
+        self.cAdversarialInputs = []
+        self.cAdversarialPredictions = []
+        self.cRefInputs = []
+        self.cRefPredictions = []
+        
+        for attackConfig in self.refInputs:
+            #self.data["y"]+=[1] * len(self.refInputs[attackConfig])
+            self.cLabels+=self.labels[attackConfig]
+            self.cAdversarialInputs+=self.adversarialInputs[attackConfig]
+            self.cAdversarialPredictions += self.adversarialPredictions[attackConfig]
+            self.cRefInputs += self.refInputs[attackConfig]
+            self.cRefPredictions += self.refPredictions[attackConfig]
+
+        #Calc Distortion between originalData and adversarial Input for all Instances 
+        distorion = DistortionLp(refname="C_"+self.refname,ord=self.norm,
+                                 original=self.cRefInputs,
+                                 adversarials = self.cAdversarialInputs).get()
+            #3. Get mean of distortions for instances originalData missclassified by the classifier to 0             
+        distorion = np.array(distorion)
+            
+        #liste[np.array(self.cRefPredictions) != np.array(self.cLabels)] = 0 #Just distortions where classificaton of referencedata = groud truth label  
+        #liste = np.ma.masked_equal(liste,0) # mask null-values to make sure they are not taken into account for mean-calculation 
+        
+        #create bins
+        #mn = np.min(np.array(liste))
+        mx = np.max(distorion)
+        bins = np.linspace(0,mx+1,100)
+        binIndizes = np.digitize(x=distorion,bins=bins)
+
+        #collect elements per bin 
+        collectorI = dict()
+
+        for i in range(len(bins)):
+            collectorI[i] = []
+
+        for i,binindex in enumerate(binIndizes):
+            collectorI[binindex].append(i)
+
+        #Let curve start at (0,1) - if perturbation = 0 x_adv = x_ref, so accuracy will be 1
+        self.data["x"].append(0)
+        self.data["y"].append(1)
+
+        # Calculate accuracy for perturbation-budget by bin-end
+        for i in range(len(bins)):
+            if collectorI[i]!= []:
+                #labelsBin = [self.cLabels[index] for index in collectorI[i]]#j in range(i+1) for index in collectorI[j] ]
+                #refPredBin = [self.cRefPredictions[index] for index in collectorI[i]]#j in range(i+1) for index in collectorI[j]]
+                #distBin = [distorion[index] for index in collectorI[i]]#j in range(i+1) for index in collectorI[j]]
+                #Filtern der ursprünglich falsch klassifizierten werte
+                #distArr = np.array(dist)
+                #distArr[np.array(np.array(refPred)) != np.array(labels)] = -1 #Just distortions where classificaton of referencedata = groud truth label  
+                #distArr = np.ma.masked_equal(distArr,-1) # mask null-values to make sure they are not taken into account for mean-calculation 
+                #self.data["x"].append(np.mean(distArr)) 
+                self.data["x"].append(bins[i])
+                #Akkuranz zu allen Adv.Bsp. kleiner gleich budget
+                labels = []
+                advPrediction = []
+                for index in range(i+1):
+                    for j in collectorI[index]:
+                        labels.append(self.cLabels[j])
+                        advPrediction.append(self.cAdversarialPredictions[j])
+                a = Accuracy(refname=self.refname,labels= labels,predictions=advPrediction,type="AbsoluteRobust")
+                self.data["y"].append(a.get())
+                
+                #self.data["binData"][str(bins[i])]= {"x":list(distArr),"y":advPrediction,"advIndex":collectorI[i]}
+            else:
+                self.data["binData"][str(bins[i])]= {"x":[],"y":[],"advIndex":collectorI[i]}
+
+        
+        self.data["names"]=list(bins)
+
+    
+
+    def createPlot(self,size,x_step,y_step,x_max,y_max,useLowerBound=False,usePoinLabels=False ):
+        self.plot = MultiPlot(x_label=self.xSuffix,y_label=self.ySuffix,
+                              size=size,x_step=x_step,y_step=y_step,x_max=x_max,y_max=y_max,title=self.description)
+        self.plot.addvLines(x=self.data["names"])
+
+        self.plot.addCurve(name=path.basename(self.refname) ,x=self.data["x"],y=self.data["y"])
 
 class ScatterAccuracyQueryCalls(Plot):
     def __init__(self, refname, **kwargs):
         super().__init__(refname, **kwargs)
-        self.name = "AkkuranzByCalls" 
-        self.description = "Robuste Akkuranz in Abhängigkeit der QueryAnzahl " 
+        self.name = "AccuracyByCalls" 
+        self.description = "Robust accuracy by querynumber " 
 
     def _calculate(self):
         kwX = {}
         self.data["x"] = MeandAdvQueryCounts(refname=self.refname, kwargs=kwX).get()
 
         kwY= {"output":self.rawY}
-        self.data["y"]=Accuracy(refname=self.refname,kwargs=kwY).get()
+        self.data["y"]=Accuracy(refname=self.refname,kwargs=kwY,type="AbsoluteRobust").get()
     
 class Bundle:
     def __init__(self,name,idlist:list) -> None:
@@ -355,14 +477,14 @@ class AccuracyPerturbationComp(Interpreter):
         except :
             raise ValueError("Parameter 'norm' is missing.")
         self.name = "AccuracyPerturbationCurve_L"+str(self.norm)+"_VGL"
-        self.description = "Robuste Akkuranz in Abhängigkeit der "+str(self.norm)+"Metrik"
+        self.description = "Robust accuracy by L "+str(self.norm)+" Metrik"
 
         #self._checkConsitency()
 
         for attack,value in self.data.items():
             interpret = AccuracyPerturbationCurve(self.refname,data=value,norm = self.norm)
             data = interpret.get()
-            self.data[attack] = (data["x"], data["y"])
+            self.data[attack] = (data["x"], data["y"],data["lbX"],data["lbY"])
         
         self.plot = None
         
@@ -370,11 +492,12 @@ class AccuracyPerturbationComp(Interpreter):
         return self.data
     
     def createPlot(self,size,x_step,y_step,x_max,y_max):
-        self.plot = MultiPlot(x_label="Mittlere L"+str(self.norm)+" Störung",y_label="Robuste Akkuranz",
+        self.plot = MultiPlot(x_label="Mittlere L"+str(self.norm)+" Störung",y_label="Robust accuracy",
                               size=size,x_step=x_step,y_step=y_step,x_max=x_max,y_max=y_max,title=self.description)
         data = self.get()
-        for key,data in data.items(): 
-            self.plot.addData(name=path.basename(key) ,x=data[0],y=data[1],useLowerBound=True)
+        for key,value in data.items(): 
+            self.plot.addScatteredData(name=path.basename(key) ,x=value[0],y=value[1],useLowerBound=True)
+            self.plot.addCurve(name=path.basename(key),x = value[2],y=value[3])
 
     def loadData(self, folder):
         # Check ob Bundle-Ordner
@@ -423,8 +546,8 @@ class AccuracyPerturbationComp(Interpreter):
         jH = JSONHandler()
         savingData = dict()
         data = self.get()
-        for key,(x,y) in data.items():
-            savingData[key]=(str(x),str(y))
+        for key,(x,y,lbx,lby) in data.items():
+            savingData[key]=(str(x),str(y),str(lbx),str(lby))
         jH.setData(savingData)
         jH.save(filename_data)
 class AdvExampleGrids(Interpreter):    
@@ -467,7 +590,6 @@ class AdvExampleGrids(Interpreter):
             subdir = ph.create_subdirectory(self.refname)
             filename = path.join(subdir,self.name+"_"+path.basename(key)+".png")
             utils.save_image(tensor=value,fp=path.join(filename))
-
 class ImagePerturbation(Interpreter):
 
     def __init__(self, refname, **kwargs):
@@ -502,6 +624,11 @@ class ImagePerturbation(Interpreter):
             subdir = ph.create_subdirectory(self.refname)
             filename = path.join(subdir,self.name+path.basename(key)+"_.png")
             utils.save_image(tensor=value,fp=path.join(filename))
+
+def getPerturbation(referenceData, adversarialData):
+    return np.reshape(np.subtract(adversarialData, referenceData), [-1])
+
+
 """
 class AccuracyByL2VGL(YByXVGL):
     Berechnung von Accuracy/Distortion zu einer Kombination von Angriffsausführung(en)
