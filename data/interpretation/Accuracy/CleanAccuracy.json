@@ -1,0 +1,82 @@
+{	"0":{
+		"0": {
+			"correct": "9263",
+			"absolut": "10000",
+			"cleanAccuracy": "92.63"
+		},
+		"0V1": {
+			"correct": "8838",
+			"absolut": "10000",
+			"cleanAccuracy": "88.38000000000001"
+		},
+		"0V2": {
+			"correct": "9036",
+			"absolut": "10000",
+			"cleanAccuracy": "90.36"
+		},
+		"0V3": {
+			"correct": "8718",
+			"absolut": "10000",
+			"cleanAccuracy": "87.18"
+		},
+		"0V4": {
+			"correct": "5827",
+			"absolut": "10000",
+			"cleanAccuracy": "58.269999999999996"
+		}
+	},
+	"2":{
+		"2": {
+			"correct": "9104",
+			"absolut": "10000",
+			"cleanAccuracy": "91.03999999999999"
+		},
+		"2V1": {
+			"correct": "8900",
+			"absolut": "10000",
+			"cleanAccuracy": "89.0"
+		},
+		"2V2": {
+			"correct": "9008",
+			"absolut": "10000",
+			"cleanAccuracy": "90.08"
+		},
+		"2V3": {
+			"correct": "8610",
+			"absolut": "10000",
+			"cleanAccuracy": "86.1"
+		},
+		"2V4": {
+			"correct": "6843",
+			"absolut": "10000",
+			"cleanAccuracy": "68.43"
+		}
+	},
+	"5":{
+		"5": {
+			"correct": "8869",
+			"absolut": "10000",
+			"cleanAccuracy": "88.69"
+		},
+		"5V1": {
+			"correct": "8827",
+			"absolut": "10000",
+			"cleanAccuracy": "88.27000000000001"
+		},
+		"5V2": {
+			"correct": "8928",
+			"absolut": "10000",
+			"cleanAccuracy": "89.28"
+		},
+		"5V3": {
+			"correct": "7546",
+			"absolut": "10000",
+			"cleanAccuracy": "75.46000000000001"
+		},
+		"5V4": {
+			"correct": "7098",
+			"absolut": "10000",
+			"cleanAccuracy": "70.98"
+		}
+	}
+}	
