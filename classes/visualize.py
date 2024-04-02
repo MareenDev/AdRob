@@ -48,7 +48,7 @@ class AdvExampleGrids(Interpreter):
             utils.save_image(tensor=value,fp=path.join(filename))
 
 
-class Histogram(Interpreter):
+class BarPlot(Interpreter):
     def __init__(self, refname, **kwargs):
         super().__init__(refname, **kwargs)
         plt.ioff()
