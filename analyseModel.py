@@ -1,4 +1,4 @@
-from interpret import RobustnessCurve, AccuracyPerturbationCurve,AdvExampleGrids,ImagePerturbation, AccuracyPerturbationBudget, Accuracy
+from interpret import RobustnessCurve, AccuracyPerturbationCurve,ImagePerturbation, AccuracyPerturbationBudget, Accuracy,AccuracyPerturbationBudgetAggregate
 from classes.framework import AttackProtocol
 import numpy as np
 from argparse import ArgumentParser
@@ -13,7 +13,7 @@ def _parseInput():
     parser.add_argument('--y_max', default=1, help='max value on y-axis', type=int) 
     parser.add_argument('--x_step', default=0.5, help='steps in x-axis', type=float)
     parser.add_argument('--y_step', default=0.1, help='steps in y-axis', type=float) 
-    parser.add_argument('--interpreter', help='',default="GetCraftedSamples", nargs='?', choices="[AbsRobustAccuracy,RelRobustAccuracy,CleanAccuracy,AccuracyPerturbationBudget,RobustnessCurve,GetCraftedSamples,AccuracyPerturbationCurve,ImagePerturbation]")#["CleanAccuracy","RobustAccuracyL2","RobustAccuracyLinf","RobustAccuracyQuery","GetCraftedSamples" ]) 
+    parser.add_argument('--interpreter', help='',default="GetCraftedSamples", nargs='?', choices="[AbsRobustAccuracy,RelRobustAccuracy,CleanAccuracy,AccuracyPerturbationBudget,RobustnessCurve,GetCraftedSamples,AccuracyPerturbationCurve,ImagePerturbation,AccuracyPerturbationBudgetAggregate]")#["CleanAccuracy","RobustAccuracyL2","RobustAccuracyLinf","RobustAccuracyQuery","GetCraftedSamples" ]) 
     parser.add_argument("--metric", type=str, default="L2", help="Distance-Metrik", choices="[L2,Linf]")
     parser.add_argument('--addLowerCurve', type= bool, default=False)
     parser.add_argument('--addConfigTexts', type= bool, default=False)
@@ -42,8 +42,12 @@ def main(args):
             interpreter = AccuracyPerturbationCurve(args.refname, data=data,norm = metric)
             interpreter.createPlot(size=args.figuresize,x_step=args.x_step,y_step=args.y_step,x_max=args.x_max,y_max=args.y_max,
                                     useLowerBound=args.addLowerCurve,usePoinLabels=args.addConfigTexts)
-        elif "AccuracyPerturbationBudget" in args.interpreter:
+        elif "AccuracyPerturbationBudget" == args.interpreter:
             interpreter = AccuracyPerturbationBudget(args.refname, data=data,norm = metric)
+            interpreter.createPlot(size=args.figuresize,x_step=args.x_step,y_step=args.y_step,x_max=args.x_max,y_max=args.y_max,
+                                    useLowerBound=args.addLowerCurve,usePoinLabels=args.addConfigTexts)
+        elif "AccuracyPerturbationBudgetAggregate" in args.interpreter:
+            interpreter = AccuracyPerturbationBudgetAggregate(args.refname, data=data,norm = metric)
             interpreter.createPlot(size=args.figuresize,x_step=args.x_step,y_step=args.y_step,x_max=args.x_max,y_max=args.y_max,
                                     useLowerBound=args.addLowerCurve,usePoinLabels=args.addConfigTexts)
         
@@ -54,7 +58,7 @@ def main(args):
             #interpreter.createPlot(size=args.figuresize,x_step=args.x_step,y_step=args.y_step,x_max=args.x_max,y_max=args.y_max,
             #                        useLowerBound=args.addLowerCurve,usePoinLabels=args.addConfigTexts)
             pass
-        elif "GetCraftedSamples" in args.interpreter:
+        """elif "GetCraftedSamples" in args.interpreter:
             #TBD Filtern der inputdaten für ref und 
             inputData = dict() 
 
@@ -68,7 +72,7 @@ def main(args):
                     #TBD: Hier liegt ein Fehler vor! d enthält nur die Daten der advList!!!
                     inputData[ref].append(d)  
                 
-            interpreter = AdvExampleGrids(args.refname,data=inputData)
+            interpreter = AdvExampleGrids(args.refname,data=inputData)"""
 
         elif "RelRobustAccuracy" in args.interpreter:
             for key in data:

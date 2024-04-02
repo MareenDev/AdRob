@@ -277,20 +277,29 @@ class MultiPlot:
         self.colorMap = dict()
         self.fig = self.init_plot(size=size,x_label=x_label,y_label=y_label,x_max=x_max,y_max=y_max,x_step=x_step,y_step=y_step,title=title)
 
-    def init_plot(self,size,x_label,y_label,x_max,y_max,x_step,y_step,title):
+    def init_plot(self,x_label,y_label,x_max,y_max,x_step,y_step,title,size=None):
         plt.ioff()
-        fig, ax = plt.subplots(1,1,figsize=size)
+        if size ==None:
+            figureSize = self._figureSize(1,1)
+        else:
+            figureSize = size
+
+        fig, ax = plt.subplots(1,1,figsize=figureSize)
         ax.legend()
-        ax.set_ylabel("Test")
-        ax.set_xlabel("Test")
-        ax.set_title("robustness curves")
+        ax.set_ylabel(y_label)
+        ax.set_xlabel(x_label)
+        ax.set_title(title)
         ax.set_xlim(left=0.0)
+        ax.set_xlim(right=x_max)
+        ax.set_ylim(0,y_max)
+        ax.set_xticks(np.linspace(0,x_max,10))
+
         #fig = plt.figure(figsize=size)
-        plt.yticks(np.arange(0, y_max, step=y_step)) # Values in [0,y_max] 
-        plt.xticks(np.arange(0, x_max+x_step,step=x_step))#self.x_sorted[-1]+steps, step=steps))
-        plt.xlabel(xlabel=x_label)
-        plt.ylabel(ylabel=y_label)
-        plt.title(title)
+        #plt.yticks(np.arange(0, y_max, step=y_step)) # Values in [0,y_max] 
+        #plt.xticks(np.arange(0, x_max+x_step,step=x_step))#self.x_sorted[-1]+steps, step=steps))
+        #plt.xlabel(xlabel=x_label)
+        #plt.ylabel(ylabel=y_label)
+        #plt.title(title)
         fig.tight_layout()
 
         return fig
@@ -298,6 +307,23 @@ class MultiPlot:
     def addvLines(self,x:list):
         for xc in x:
             plt.axvline(x=xc, linestyle="dotted", color="lightgrey")
+
+    def _figureSize(self,n_rows, n_cols, text_width=10):
+        ax_width = text_width / 3
+        ax_height = text_width / 5
+        extra_height = text_width / 4 * 2 - text_width / 5 * 2
+
+        fig_width = n_cols * ax_width
+        fig_height = n_rows * ax_height
+
+        if fig_width > text_width:
+            factor = text_width / fig_width
+            fig_width *= factor
+            fig_height *= factor
+
+        fig_height += extra_height
+
+        return fig_width, fig_height
 
     def _getColor(self,name):
         try:
@@ -335,7 +361,9 @@ class MultiPlot:
         else:
             plt.plot(x_curve,y_curve, c=color, alpha=0.5)
             plt.legend(loc="upper right")
-              
+        plt.yticks(np.arange(0,1.1, 0.1))
+        plt.xticks(np.arange(0,1,0.1))
+
     def addScatteredData(self,name:str,x:list,y:list, useLowerBound = False, usePoinLabels =False,pointlabels=[]):
         if len(x) != len(y):
             raise ValueError("Lists x and y need to have same length")
@@ -408,7 +436,6 @@ class MultiPlot:
             for i,_ in enumerate(x):
                 plt.text(x[i],y[i],path.basename(names[i]))
                 
-
     def show(self):
         self.fig.show()
 

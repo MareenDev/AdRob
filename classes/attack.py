@@ -48,7 +48,6 @@ class HSJ(EvasionAttack):
         self.y_list[name] = y_sublist
         self.querycount[name] = querycount_sublist
 
-
 class SignOPT(EvasionAttack):
     """SignOpt Attack - Decision-based attack
      Using the implementation of Adversarial Robustness Toolbox"""
@@ -156,8 +155,6 @@ class ZOO(EvasionAttack):
         self.x_list[name] = [x_ref.squeeze(),x_adv.squeeze()]  
         self.y_list[name] = [np.argmax(y_ref),np.argmax(y_adv)]
         self.querycount[name] = [0,self.APICall.getCounts()]
-
-
 
 class Square(EvasionAttack):
     pass

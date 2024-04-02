@@ -8,3 +8,6 @@
 SignOpt.py
 HSJ_old.py
 data/*
+robustnessCurve.py
+predictClass.py
+test.py
