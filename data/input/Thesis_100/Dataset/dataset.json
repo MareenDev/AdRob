@@ -1,0 +1,51 @@
+{
+    "name": "./data/input/Thesis_100",
+    "size": 100,
+    "shape": [
+        28,
+        28,
+        3
+    ],
+    "data": [
+        {
+            "path": "./data/input/Test\\Dataset\\7.npy",
+            "label": "7"
+        },
+        {
+            "path": "./data/input/Test\\Dataset\\2.npy",
+            "label": "2"
+        },
+        {
+            "path": "./data/input/Test\\Dataset\\9.npy",
+            "label": "9"
+        },
+        {
+            "path": "./data/input/Test\\Dataset\\6.npy",
+            "label": "6"
+        },
+        {
+            "path": "./data/input/Test\\Dataset\\1.npy",
+            "label": "1"
+        },
+        {
+            "path": "./data/input/Test\\Dataset\\3.npy",
+            "label": "3"
+        },
+        {
+            "path": "./data/input/Test\\Dataset\\5.npy",
+            "label": "5"
+        },
+        {
+            "path": "./data/input/Test\\Dataset\\4.npy",
+            "label": "4"
+        },
+        {
+            "path": "./data/input/Test\\Dataset\\0.npy",
+            "label": "0"
+        },
+        {
+            "path": "./data/input/Test\\Dataset\\8.npy",
+            "label": "8"
+        }
+    ]
+}
