@@ -16,10 +16,10 @@ Für jeden anzugreifenden Webservice ist ein Adapter, der die Daten der Webservi
 ## Verwendete Bibliotheken
 Diese Implementierung basiert auf der Nutzung verschiedener Bibliotheken.
 Insbesondere werden 
-* **Adversarial Robustness Toolbox** (ART) - für die Durchführung verschiedener Angriffe
-* **numpy**  - zur Abspeicherung von Bilddaten
-* **torchvision** - Zur Datenbereitstellung und Bildtransformation
-* **matplotlib** - Zur Erstellung von Graphen bei der Auswertung
+* [**Adversarial Robustness Toolbox**](https://adversarial-robustness-toolbox.readthedocs.io/) (ART) - für die Durchführung verschiedener Angriffe
+* [**numpy**](https://numpy.org/)  - zur Abspeicherung von Bilddaten
+* [**torchvision**](https://pytorch.org/vision/stable/index.html) - Zur Datenbereitstellung und Bildtransformation
+* [**matplotlib**](https://matplotlib.org/stable/) - Zur Erstellung von Graphen bei der Auswertung
 verwendet.
 
 ## Implementierte Angriffe
