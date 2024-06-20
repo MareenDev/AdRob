@@ -12,6 +12,10 @@ Zudem können Metriken definiert werden, mit welchen sich verschiedene Modelle v
 
 Für jeden anzugreifenden Webservice ist ein Adapter, der die Daten der Webservice-Schnittstellen entsprechend aufarbeitet, zu implementieren.
 
+## Was sind Evasion-Blackbox-Angriffe?
+Evasion-Angriffe (auch Adversarialer Angriff) sind Angriffe auf die Integrität von ML-Systemen zur Klassifikation. Diese Angriffe erfolgen während der Testphase eines Klassifikators, oder nach dessen Bereitstellung im Produktivbetrieb. Die Angriffsdurchführung beruht darauf, dass die Daten vor Eingabe in das System mit einer leichten, für den Menschen gegebenenfalls nicht wahrnehmbaren, Störung (perturbation) versehen werden, um eine (für den Menschen) nicht erwartungsgemäße Ausgabe zu provozieren. Steht einem Angreifer ausschließlich ein Anfrage-Zugriff auf das System zur Verfügung, so spricht man von einem Blackbox-Evasion Angriff. Das anzugreifende System stellt in diesem Fall eine Blackbox für den Angreifer dar, dessen interne Entscheidungswege nicht einsehbar sind.
+
+Der Angriff auf einen Webservice, welcher Eingaben entgegennimmt und mittels ML-System eine Klassifikation zurück gibt, stellt ein Beispiel für einen Evasion-Blackbox-Angriff dar.
 
 ## Verwendete Bibliotheken
 Diese Implementierung basiert auf der Nutzung verschiedener Bibliotheken.
