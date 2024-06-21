@@ -17,6 +17,9 @@ Evasion-Angriffe (auch Adversarialer Angriff) sind Angriffe auf die Integrität 
 
 Der Angriff auf einen Webservice, welcher Eingaben entgegennimmt und mittels ML-System eine Klassifikation zurück gibt, stellt ein Beispiel für einen Evasion-Blackbox-Angriff dar.
 
+Für weitere Informationen siehe auch [Adversarial Machine Learning: A Taxonomy and Terminology of Attacks and Mitigations
+](https://csrc.nist.gov/pubs/ai/100/2/e2023/final), oder [Explaining and Harnessing Adversarial Examples](https://arxiv.org/abs/1412.6572). Hinweis zum  Zusammenhang von Evasion-Angriffe und adversarialen Beispielen: Evasion-Angriffe basieren auf dem Vorhandensein adversarialer Beispiele und stellen eine gezielte Suche nach diesen dar.
+
 ## Verwendete Bibliotheken
 Diese Implementierung basiert auf der Nutzung verschiedener Bibliotheken.
 Insbesondere werden 
@@ -69,4 +72,32 @@ verwendet.
    pip install -r requirements.txt
    ```
 ## Aufbau und Verwendung
-TBD
+
+Die Implementierung umfasst Skripte mit Ablauflogik und Skripte zur Bereitstellung von Objekten und Funktionen.
+
+### Skripte mit Ablauflogik 
+Die folgenden Skripte sind für die Verwendung der Implementierung per Konsolenaufruf auszuführen.
+In einem ersten Schritt sind Ausgangsdaten(z.B. gelabelte Testdaten) für den Evasion-Angriff zusammenzutragen und aufzubereiten. Anschließend kann die Durchführung von Evasion-Angriffen auf Basis dieser Daten vorgenommen werden.
+Nach Abschluss der Angriffsausführung können die im Angriff gesammelten Daten (berechnete Eingabedaten, Ausgabedaten, Aufrufanzahl) analyiert/interpretiert werden.
+
+* **getData.py** - Dient der Sammlung von Ausgangsdaten für die Verwendung im Evasion-Angriff. Die Logik verwendet insb. Objekte des Skriptes **classes/attack.py**. Daten können bspw. per Googlebildersuche, oder durch auslesen von Torchvision-Dataset erfolgen.
+  Gesammelte Daten werden in Ordner **data/input** abgespeichert.
+* **prepareData.py** - Bereitet die Daten aus einem Ordner (i.A. data/input/...) für die Weiterverarbeitung durch das Framework auf und speichert diese als Numpy-Arrays ab.
+* **runattack.py** - Durchführung von Evasion-Angriffen. Mit einem Skriptlauf können verschiedene Angriffskonfigurationen durchgeführt werden. Angriffsdaten werden unter **data/interpretation** abgespeichert
+* **analyseModel.py** - Ermittelung von Maßen zu einer Angriffsausführung -
+* **compareModels.py** - Vergleich mehrerer Maße zu verschiedenen Angriffsausführungen
+
+
+### Skripte zur Objektdefinition & Funktionen 
+Ordner **classes** kapselt die Logik für Objektdefinitionen und sonstige Funktionen. Eine Erweiterung aller enthaltener Skripte, mit Ausnahme des Skriptes classes/framework.py, ist vorgesehen.
+
+* **classes/attack.py** definiert verfügbare Angriffe - Kann erweitert werden 
+* **classes/data.py** führt Domänenspezifische Logik - Kann erweitert werden
+* **classes/framework.py** umfasst Logik des Rahmenwerkes - Nicht zu erweitern
+* **classes/metric.py** umfasst Metriken - Ausbaustufe!
+* **classes/models.py** umfasst die API/Webservice-spezifische Logik für den Requestaufbau zu einem Angriff. - Bei Anwendung auf neuen Webservice sind hier entsprechende Objekte vom Typ RestApiCall zu erzeugen.
+* **classes/plots.py** - Ausbaustufe
+* **classes/visualize.py** - Ausbaustufe
+
+
+
